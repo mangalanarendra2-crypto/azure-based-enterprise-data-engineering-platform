@@ -1,0 +1,48 @@
+{
+  "name": "pl_sales_medallion",
+  "properties": {
+    "description": "Orchestrates Bronze -> Silver -> Gold Databricks notebooks for the sales dataset.",
+    "parameters": {
+      "storage_account": { "type": "string" },
+      "landing_path": { "type": "string", "defaultValue": "sales" },
+      "notebook_root": { "type": "string", "defaultValue": "/Shared/data-platform" }
+    },
+    "activities": [
+      {
+        "name": "Bronze_Ingest",
+        "type": "DatabricksNotebook",
+        "policy": { "timeout": "0.01:00:00", "retry": 1, "retryIntervalInSeconds": 60 },
+        "typeProperties": {
+          "notebookPath": "@concat(pipeline().parameters.notebook_root, '/01_bronze_ingest')",
+          "baseParameters": {
+            "storage_account": "@pipeline().parameters.storage_account",
+            "landing_path": "@pipeline().parameters.landing_path"
+          }
+        },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Silver_Transform",
+        "type": "DatabricksNotebook",
+        "dependsOn": [ { "activity": "Bronze_Ingest", "dependencyConditions": [ "Succeeded" ] } ],
+        "policy": { "timeout": "0.01:00:00", "retry": 1, "retryIntervalInSeconds": 60 },
+        "typeProperties": {
+          "notebookPath": "@concat(pipeline().parameters.notebook_root, '/02_silver_transform')",
+          "baseParameters": { "storage_account": "@pipeline().parameters.storage_account" }
+        },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" }
+      },
+      {
+        "name": "Gold_Aggregate",
+        "type": "DatabricksNotebook",
+        "dependsOn": [ { "activity": "Silver_Transform", "dependencyConditions": [ "Succeeded" ] } ],
+        "policy": { "timeout": "0.01:00:00", "retry": 1, "retryIntervalInSeconds": 60 },
+        "typeProperties": {
+          "notebookPath": "@concat(pipeline().parameters.notebook_root, '/03_gold_aggregate')",
+          "baseParameters": { "storage_account": "@pipeline().parameters.storage_account" }
+        },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" }
+      }
+    ]
+  }
+}
